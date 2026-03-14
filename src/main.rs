@@ -1,5 +1,6 @@
 use bevy::prelude::*;
-use std::num;
+use rand::RngExt;
+use std::f32::consts::FRAC_PI_2;
 
 #[derive(Component)]
 struct PlayerPaddle;
@@ -46,6 +47,28 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         TextColor(Color::WHITE),
         Transform::from_translation(Vec3::from_array([-500.0, 0.0, 0.0])),
         PlayerPaddle,
+        Velocity {
+            speed: 0.0,
+            direction: Vec2::from_array([0.0, 0.0]),
+        },
+        Size {
+            top: 75.0,
+            bottom: 75.0,
+            left: 1.0,
+            right: 1.0,
+        },
+    ));
+    // spawn AI paddle
+    commands.spawn((
+        Text2d::new("@\n@"),
+        TextFont {
+            font_size: 12.8,
+            font: default(),
+            ..default()
+        },
+        TextColor(Color::WHITE),
+        Transform::from_translation(Vec3::from_array([500.0, 0.0, 0.0])),
+        AIPaddle,
         Velocity {
             speed: 0.0,
             direction: Vec2::from_array([0.0, 0.0]),
@@ -133,8 +156,12 @@ fn paddle_collisions(
                     >= (paddle_transform.translation.y - paddle_size.bottom)
             {
                 ball_velocity.direction.x = ball_velocity.direction.x * -1.0;
-                ball_velocity.speed =
-                    ball_velocity.speed + paddle_velocity.speed * ball_velocity.direction.y;
+                ball_velocity.speed = ball_velocity.speed + 10.0;
+                let mut rng = rand::rng();
+                let rand_angle = rng.random_range(-FRAC_PI_2..FRAC_PI_2) / 5.0;
+                ball_velocity.direction = ball_velocity
+                    .direction
+                    .rotate(Vec2::new(rand_angle.cos(), rand_angle.sin()));
             }
         } else if paddle_transform.translation.x > 0.0 {
             if (ball_transform.translation.x + ball_size.right)
