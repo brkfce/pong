@@ -12,6 +12,9 @@ struct AIPaddle;
 struct Ball;
 
 #[derive(Component)]
+struct GameBoundary;
+
+#[derive(Component)]
 struct Velocity {
     speed: f32,
     direction: Vec2,
@@ -36,6 +39,16 @@ fn main() {
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     // spawn camera
     commands.spawn(Camera2d);
+    // spawn game boundary
+    commands.spawn((
+        GameBoundary,
+        Size {
+            top: 400.0,
+            bottom: 400.0,
+            left: 700.0,
+            right: 700.0,
+        },
+    ));
     // spawn player paddle
     commands.spawn((
         Text2d::new("@\n@"),
@@ -128,8 +141,8 @@ fn move_player_paddle(
     }
 }
 
-fn move_ball(time: Res<Time>, mut q: Single<(&mut Transform, &mut Velocity), With<Ball>>) {
-    let (mut ball_transform, mut ball_velocity) = q.into_inner();
+fn move_ball(time: Res<Time>, q: Single<(&mut Transform, &mut Velocity), With<Ball>>) {
+    let (mut ball_transform, ball_velocity) = q.into_inner();
     let delta = ball_velocity.direction.normalize() * ball_velocity.speed * time.delta_secs();
     ball_transform.translation.y += delta.y;
     ball_transform.translation.x += delta.x;
