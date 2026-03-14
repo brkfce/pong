@@ -28,7 +28,7 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_systems(Startup, setup)
-        .add_systems(Update, (move_player_paddle, move_ball))
+        .add_systems(Update, (move_player_paddle, move_ball, paddle_collisions))
         .run();
 }
 
@@ -50,6 +50,12 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             speed: 0.0,
             direction: Vec2::from_array([0.0, 0.0]),
         },
+        Size {
+            top: 75.0,
+            bottom: 75.0,
+            left: 1.0,
+            right: 1.0,
+        },
     ));
     // spawn ball
     commands.spawn((
@@ -65,6 +71,12 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         Velocity {
             speed: 100.0,
             direction: Vec2::from_array([-1.0, 0.0]),
+        },
+        Size {
+            top: 10.0,
+            bottom: 10.0,
+            left: 10.0,
+            right: 10.0,
         },
     ));
 }
@@ -93,21 +105,49 @@ fn move_player_paddle(
     }
 }
 
-fn move_ball(
-    time: Res<Time>,
-    mut q: Single<(&mut Transform, &mut Velocity), With<Ball>>,
-    paddles: Query<(&Transform, &Velocity), Without<Ball>>,
-) {
+fn move_ball(time: Res<Time>, mut q: Single<(&mut Transform, &mut Velocity), With<Ball>>) {
     let (mut ball_transform, mut ball_velocity) = q.into_inner();
     let delta = ball_velocity.direction.normalize() * ball_velocity.speed * time.delta_secs();
     ball_transform.translation.y += delta.y;
     ball_transform.translation.x += delta.x;
+}
+
+fn paddle_collisions(
+    q: Single<(&Transform, &mut Velocity, &Size), With<Ball>>,
+    paddles: Query<(&Transform, &Velocity, &Size), Without<Ball>>,
+) {
+    let (ball_transform, mut ball_velocity, ball_size) = q.into_inner();
 
     for paddle in &paddles {
         let paddle_transform = paddle.0;
         let paddle_velocity = paddle.1;
-        if ball_transform.translation.x.abs() >= paddle_transform.translation.x.abs() {
-            ball_velocity.direction.x = ball_velocity.direction.x * -1.0;
+        let paddle_size = paddle.2;
+
+        // check player paddle
+        if paddle_transform.translation.x < 0.0 {
+            if (ball_transform.translation.x - ball_size.left)
+                <= (paddle_transform.translation.x + paddle_size.right)
+                && (ball_transform.translation.y - ball_size.top)
+                    <= (paddle_transform.translation.y + paddle_size.top)
+                && (ball_transform.translation.y + ball_size.top)
+                    >= (paddle_transform.translation.y - paddle_size.bottom)
+            {
+                ball_velocity.direction.x = ball_velocity.direction.x * -1.0;
+                ball_velocity.speed =
+                    ball_velocity.speed + paddle_velocity.speed * ball_velocity.direction.y;
+            }
+        } else if paddle_transform.translation.x > 0.0 {
+            if (ball_transform.translation.x + ball_size.right)
+                >= (paddle_transform.translation.x - paddle_size.left)
+                && (ball_transform.translation.y - ball_size.top)
+                    <= (paddle_transform.translation.y + paddle_size.top)
+                && (ball_transform.translation.y + ball_size.top)
+                    >= (paddle_transform.translation.y - paddle_size.bottom)
+            {
+                ball_velocity.direction.x = ball_velocity.direction.x * -1.0;
+                ball_velocity.speed =
+                    ball_velocity.speed + paddle_velocity.speed * ball_velocity.direction.y;
+            }
         }
     }
 }
