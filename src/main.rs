@@ -2,6 +2,8 @@ use bevy::prelude::*;
 use rand::RngExt;
 use std::f32::consts::FRAC_PI_2;
 
+const BOUNCE_SPEED_INCREASE: f32 = 10.0;
+
 #[derive(Component)]
 struct PlayerPaddle;
 
@@ -32,7 +34,15 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_systems(Startup, setup)
-        .add_systems(Update, (move_player_paddle, move_ball, paddle_collisions))
+        .add_systems(
+            Update,
+            (
+                move_player_paddle,
+                move_ball,
+                paddle_collisions,
+                ball_boundary_collisions,
+            ),
+        )
         .run();
 }
 
@@ -43,8 +53,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn((
         GameBoundary,
         Size {
-            top: 400.0,
-            bottom: 400.0,
+            top: 350.0,
+            bottom: 350.0,
             left: 700.0,
             right: 700.0,
         },
@@ -159,35 +169,52 @@ fn paddle_collisions(
         let paddle_velocity = paddle.1;
         let paddle_size = paddle.2;
 
-        // check player paddle
-        if paddle_transform.translation.x < 0.0 {
-            if (ball_transform.translation.x - ball_size.left)
+        // check if ball + size collides with either paddle + size
+        if ((paddle_transform.translation.x < 0.0)
+            && (ball_transform.translation.x - ball_size.left)
                 <= (paddle_transform.translation.x + paddle_size.right)
-                && (ball_transform.translation.y - ball_size.top)
-                    <= (paddle_transform.translation.y + paddle_size.top)
-                && (ball_transform.translation.y + ball_size.top)
-                    >= (paddle_transform.translation.y - paddle_size.bottom)
-            {
-                ball_velocity.direction.x = ball_velocity.direction.x * -1.0;
-                ball_velocity.speed = ball_velocity.speed + 10.0;
-                let mut rng = rand::rng();
-                let rand_angle = rng.random_range(-FRAC_PI_2..FRAC_PI_2) / 5.0;
-                ball_velocity.direction = ball_velocity
-                    .direction
-                    .rotate(Vec2::new(rand_angle.cos(), rand_angle.sin()));
-            }
-        } else if paddle_transform.translation.x > 0.0 {
-            if (ball_transform.translation.x + ball_size.right)
-                >= (paddle_transform.translation.x - paddle_size.left)
-                && (ball_transform.translation.y - ball_size.top)
-                    <= (paddle_transform.translation.y + paddle_size.top)
-                && (ball_transform.translation.y + ball_size.top)
-                    >= (paddle_transform.translation.y - paddle_size.bottom)
-            {
-                ball_velocity.direction.x = ball_velocity.direction.x * -1.0;
-                ball_velocity.speed =
-                    ball_velocity.speed + paddle_velocity.speed * ball_velocity.direction.y;
-            }
+            && (ball_transform.translation.y - ball_size.top)
+                <= (paddle_transform.translation.y + paddle_size.top)
+            && (ball_transform.translation.y + ball_size.top)
+                >= (paddle_transform.translation.y - paddle_size.bottom))
+            || ((paddle_transform.translation.x > 0.0)
+                && ((ball_transform.translation.x + ball_size.right)
+                    >= (paddle_transform.translation.x - paddle_size.left)
+                    && (ball_transform.translation.y - ball_size.top)
+                        <= (paddle_transform.translation.y + paddle_size.top)
+                    && (ball_transform.translation.y + ball_size.top)
+                        >= (paddle_transform.translation.y - paddle_size.bottom)))
+        {
+            ball_velocity.direction.x = ball_velocity.direction.x * -1.0;
+            ball_velocity.speed = ball_velocity.speed + BOUNCE_SPEED_INCREASE;
+            let mut rng = rand::rng();
+            let rand_angle = rng.random_range(-FRAC_PI_2..FRAC_PI_2) / 5.0;
+            ball_velocity.direction = ball_velocity
+                .direction
+                .rotate(Vec2::new(rand_angle.cos(), rand_angle.sin()));
         }
+    }
+}
+
+fn ball_boundary_collisions(
+    ball_query: Single<(&Transform, &mut Velocity, &Size), With<Ball>>,
+    boundary: Single<Entity, With<GameBoundary>>,
+    boundary_query: Query<&Size>,
+) {
+    let (ball_transform, mut ball_velocity, ball_size) = ball_query.into_inner();
+    let boundary_entity = boundary.entity();
+    let boundary_size = boundary_query.get(boundary_entity).unwrap();
+
+    // check if ball collides with boundary and if so, bounce
+    if ((ball_transform.translation.y + ball_size.top) >= boundary_size.top)
+        || (ball_transform.translation.y - ball_size.bottom) <= -1.0 * boundary_size.bottom
+    {
+        ball_velocity.direction.y = ball_velocity.direction.y * -1.0;
+        ball_velocity.speed = ball_velocity.speed + BOUNCE_SPEED_INCREASE;
+        let mut rng = rand::rng();
+        let rand_angle = rng.random_range(-FRAC_PI_2..FRAC_PI_2) / 5.0;
+        ball_velocity.direction = ball_velocity
+            .direction
+            .rotate(Vec2::new(rand_angle.cos(), rand_angle.sin()));
     }
 }
