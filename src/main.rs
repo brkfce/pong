@@ -3,6 +3,7 @@ use rand::RngExt;
 use std::f32::consts::FRAC_PI_2;
 
 const BOUNCE_SPEED_INCREASE: f32 = 10.0;
+const PADDLE_SPEED: f32 = 300.0;
 
 #[derive(Component)]
 struct PlayerPaddle;
@@ -22,7 +23,7 @@ struct Velocity {
     direction: Vec2,
 }
 
-#[derive(Component)]
+#[derive(Component, Clone)]
 struct Size {
     top: f32,
     bottom: f32,
@@ -48,6 +49,7 @@ fn main() {
                 paddle_collisions,
                 ball_boundary_collisions,
                 scoring,
+                ai_paddle,
             ),
         )
         .run();
@@ -161,10 +163,9 @@ fn move_player_paddle(
     }
 
     if direction != Vec2::ZERO {
-        let speed = 300.0; // pixels per second
-        let delta = direction.normalize() * speed * time.delta_secs();
+        let delta = direction.normalize() * PADDLE_SPEED * time.delta_secs();
         player_transform.translation.y += delta.y;
-        player_velocity.speed = speed;
+        player_velocity.speed = PADDLE_SPEED;
         player_velocity.direction = direction;
     }
 }
@@ -203,8 +204,8 @@ fn paddle_collisions(
                     && (ball_transform.translation.y + ball_size.top)
                         >= (paddle_transform.translation.y - paddle_size.bottom)))
         {
-            ball_velocity.direction.x = ball_velocity.direction.x * -1.0;
-            ball_velocity.speed = ball_velocity.speed + BOUNCE_SPEED_INCREASE;
+            ball_velocity.direction.x *= -1.0;
+            ball_velocity.speed += BOUNCE_SPEED_INCREASE;
             let mut rng = rand::rng();
             let rand_angle = rng.random_range(-FRAC_PI_2..FRAC_PI_2) / 5.0;
             ball_velocity.direction = ball_velocity
@@ -227,8 +228,8 @@ fn ball_boundary_collisions(
     if ((ball_transform.translation.y + ball_size.top) >= boundary_size.top)
         || (ball_transform.translation.y - ball_size.bottom) <= -1.0 * boundary_size.bottom
     {
-        ball_velocity.direction.y = ball_velocity.direction.y * -1.0;
-        ball_velocity.speed = ball_velocity.speed + BOUNCE_SPEED_INCREASE;
+        ball_velocity.direction.y *= -1.0;
+        ball_velocity.speed += BOUNCE_SPEED_INCREASE;
         let mut rng = rand::rng();
         let rand_angle = rng.random_range(-FRAC_PI_2..FRAC_PI_2) / 5.0;
         ball_velocity.direction = ball_velocity
@@ -253,12 +254,52 @@ fn scoring(
     {
         // score for player/ai
         if ball_transform.translation.x > 0.0 {
-            score.player = score.player + 1;
+            score.player += 1;
         } else if ball_transform.translation.x < 0.0 {
-            score.ai = score.ai + 1;
+            score.ai += 1;
         }
         // reset ball
         ball_transform.translation.x = 0.0;
         ball_transform.translation.y = 0.0;
+    }
+}
+
+fn ai_paddle(
+    /*
+    ball_query: Single<&Transform, With<Ball>>,
+    ai: Single<Entity, With<AIPaddle>>,
+    mut ai_query: Query<(&mut Transform, &Size), Without<GameBoundary>>,
+    boundary: Single<Entity, With<GameBoundary>>,
+    boundary_query: Query<&Size, Without<AIPaddle>>,
+    */
+    time: Res<Time>,
+
+    mut set: ParamSet<(
+        Single<&Transform, With<Ball>>,
+        Single<(&mut Transform, &Size), With<AIPaddle>>,
+        Single<&Size, With<GameBoundary>>,
+    )>,
+) {
+    /*
+        let boundary_entity = boundary.entity();
+        let boundary_size = boundary_query.get(boundary_entity).unwrap();
+
+        let ball_transform = ball_query.into_inner();
+
+        let ai_entity = ai.entity();
+        let (mut ai_transform, ai_size) = ai_query.get_mut(ai_entity).unwrap();
+    */
+    let ball_transform = set.p0().into_inner().clone();
+    let boundary_size = set.p2().into_inner().clone();
+    let (mut ai_transform, ai_size) = set.p1().into_inner();
+
+    if ball_transform.translation.y > ai_transform.translation.y
+        && ai_transform.translation.y + ai_size.top < boundary_size.top
+    {
+        ai_transform.translation.y += PADDLE_SPEED * time.delta_secs();
+    } else if ball_transform.translation.y < ai_transform.translation.y
+        && ai_transform.translation.y - ai_size.bottom > -1.0 * boundary_size.bottom
+    {
+        ai_transform.translation.y -= PADDLE_SPEED * time.delta_secs();
     }
 }
