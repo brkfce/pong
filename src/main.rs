@@ -30,6 +30,12 @@ struct Size {
     right: f32,
 }
 
+#[derive(Component)]
+struct Score {
+    player: u8,
+    ai: u8,
+}
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
@@ -41,6 +47,7 @@ fn main() {
                 move_ball,
                 paddle_collisions,
                 ball_boundary_collisions,
+                scoring,
             ),
         )
         .run();
@@ -59,6 +66,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             right: 700.0,
         },
     ));
+    // spawn score
+    commands.spawn(Score { player: 0, ai: 0 });
     // spawn player paddle
     commands.spawn((
         Text2d::new("@\n@"),
@@ -216,5 +225,27 @@ fn ball_boundary_collisions(
         ball_velocity.direction = ball_velocity
             .direction
             .rotate(Vec2::new(rand_angle.cos(), rand_angle.sin()));
+    }
+}
+
+fn scoring(
+    ball_query: Single<(&Transform, &Size), With<Ball>>,
+    boundary: Single<Entity, With<GameBoundary>>,
+    boundary_query: Query<&Size>,
+    mut score: Single<&mut Score, With<Score>>,
+) {
+    let (ball_transform, ball_size) = ball_query.into_inner();
+    let boundary_entity = boundary.entity();
+    let boundary_size = boundary_query.get(boundary_entity).unwrap();
+
+    // check if ball collides with boundary and if so, score
+    if ((ball_transform.translation.x + ball_size.right) >= boundary_size.right)
+        || (ball_transform.translation.x - ball_size.left) <= -1.0 * boundary_size.left
+    {
+        if ball_transform.translation.x > 0.0 {
+            score.player = score.player + 1;
+        } else if ball_transform.translation.x < 0.0 {
+            score.ai = score.ai + 1;
+        }
     }
 }
