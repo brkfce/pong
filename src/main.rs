@@ -238,12 +238,12 @@ fn ball_boundary_collisions(
 }
 
 fn scoring(
-    ball_query: Single<(&Transform, &Size), With<Ball>>,
+    ball_query: Single<(&mut Transform, &Size), With<Ball>>,
     boundary: Single<Entity, With<GameBoundary>>,
     boundary_query: Query<&Size>,
     mut score: Single<&mut Score, With<Score>>,
 ) {
-    let (ball_transform, ball_size) = ball_query.into_inner();
+    let (mut ball_transform, ball_size) = ball_query.into_inner();
     let boundary_entity = boundary.entity();
     let boundary_size = boundary_query.get(boundary_entity).unwrap();
 
@@ -251,10 +251,14 @@ fn scoring(
     if ((ball_transform.translation.x + ball_size.right) >= boundary_size.right)
         || (ball_transform.translation.x - ball_size.left) <= -1.0 * boundary_size.left
     {
+        // score for player/ai
         if ball_transform.translation.x > 0.0 {
             score.player = score.player + 1;
         } else if ball_transform.translation.x < 0.0 {
             score.ai = score.ai + 1;
         }
+        // reset ball
+        ball_transform.translation.x = 0.0;
+        ball_transform.translation.y = 0.0;
     }
 }
