@@ -139,15 +139,24 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 fn move_player_paddle(
     input: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
-    q: Single<(&mut Transform, &mut Velocity), With<PlayerPaddle>>,
+    q: Single<(&mut Transform, &mut Velocity, &Size), With<PlayerPaddle>>,
+    boundary: Single<Entity, With<GameBoundary>>,
+    boundary_query: Query<&Size>,
 ) {
-    let (mut player_transform, mut player_velocity) = q.into_inner();
+    let (mut player_transform, mut player_velocity, paddle_size) = q.into_inner();
     let mut direction = Vec2::ZERO;
 
-    if input.pressed(KeyCode::ArrowUp) {
+    let boundary_entity = boundary.entity();
+    let boundary_size = boundary_query.get(boundary_entity).unwrap();
+
+    if input.pressed(KeyCode::ArrowUp)
+        && (player_transform.translation.y + paddle_size.top <= boundary_size.top)
+    {
         direction.y += 1.0;
     }
-    if input.pressed(KeyCode::ArrowDown) {
+    if input.pressed(KeyCode::ArrowDown)
+        && (player_transform.translation.y - paddle_size.bottom >= -1.0 * boundary_size.bottom)
+    {
         direction.y -= 1.0;
     }
 
